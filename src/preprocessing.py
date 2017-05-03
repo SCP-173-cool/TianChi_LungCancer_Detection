@@ -23,14 +23,15 @@ class Image_preprocessing(object):
         return image
 
     def image_normalization(self, image, MIN_BOUND=-1000.0, MAX_BOUND=400.0):
-        image = (image - MIN_BOUND) / (MAX_BOUND - MIN_BOUND)
-        image[image > 1] = 1
-        image[image < 0] = 0
+        fucck = image
+        fucck = (fucck - MIN_BOUND) / (MAX_BOUND - MIN_BOUND)
+        fucck[fucck > 1] = 1
+        fucck[fucck < 0] = 0
         return image
 
     def get_segmented_lungs(self, im, val=0.24):
         fucck = im
-        binary = im < val
+        binary = fucck < val
         cleared = clear_border(binary)
         label_image = label(cleared)
         areas = [r.area for r in regionprops(label_image)]
@@ -58,7 +59,7 @@ class Image_preprocessing(object):
         #all_lungs = self.get_segmented_lungs(image[120])
         return all_lungs
 
-tt = Image_preprocessing('../data/test_subset00/LKDS-00012.mhd')
+tt = Image_preprocessing('../data/train_subset00/LKDS-00012.mhd')
 
 aa = tt.test()
 import matplotlib.pyplot as plt
