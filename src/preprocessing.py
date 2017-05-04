@@ -1,67 +1,33 @@
 
-
+from Im_Nod_info import *
+import os
 import numpy as np
-import SimpleITK as sitk
-from skimage.morphology import ball, disk, dilation, binary_erosion, remove_small_objects, erosion, closing, reconstruction, binary_closing
-from skimage.measure import label, regionprops, perimeter
-from skimage.morphology import binary_dilation, binary_opening
-from skimage.segmentation import clear_border
-from skimage.filters import roberts, sobel
-from scipy import ndimage as ndi
+from skimage import io, draw
 
 
-class Image_preprocessing(object):
-    def __init__(self, file_name):
-        self.file_name = file_name
-        self.sitk_image = sitk.ReadImage(file_name)
-        self.origin = np.array(self.sitk_image.GetOrigin())
-        self.spacing = np.array(self.sitk_image.GetSpacing())
+lst = open('../data/csv/train/annotations.csv').readlines()
 
-    def read_ct_image(self):
-        image = sitk.GetArrayFromImage(self.sitk_image)
-        self.image_shape = image.shape
-        return image
+for i in lst[1:]:
+	uid,coordX,coordY,coordZ,diameter_mm = i.split('\r\n')[0].split(',')
 
-    def image_normalization(self, image, MIN_BOUND=-1000.0, MAX_BOUND=400.0):
-        fucck = image
-        fucck = (fucck - MIN_BOUND) / (MAX_BOUND - MIN_BOUND)
-        fucck[fucck > 1] = 1
-        fucck[fucck < 0] = 0
-        return image
+	image_path = '../../data_lung/train/{}.mhd'.format(uid)
+	save_path = '../results/overviews/{}_{}.jpg'.format(uid,diameter_mm)
 
-    def get_segmented_lungs(self, im, val=0.24):
-        fucck = im
-        binary = fucck < val
-        cleared = clear_border(binary)
-        label_image = label(cleared)
-        areas = [r.area for r in regionprops(label_image)]
-        areas.sort()
-        if len(areas) > 2:
-            for region in regionprops(label_image):
-                if region.area < areas[-2]:
-                    for coordinates in region.coords:
-                        label_image[coordinates[0], coordinates[1]] = 0
-        binary = label_image > 0
-        selem = disk(2)
-        binary = binary_erosion(binary, selem)
-        selem = disk(10)
-        binary = binary_closing(binary, selem)
-        edges = roberts(binary)
-        binary = ndi.binary_fill_holes(edges)
-        get_high_vals = binary == 0
-        fucck[get_high_vals] = 0
-        return fucck
+	if not os.path.exists(image_path):
+		continue
 
-    def test(self):
-        image = self.image_normalization(self.read_ct_image())
-        all_lungs = np.stack([self.get_segmented_lungs(image[i])
-                              for i in range(self.image_shape[0])])
-        #all_lungs = self.get_segmented_lungs(image[120])
-        return all_lungs
+	world_coord = np.array([coordX,coordY,coordZ], dtype=np.float32)
+	
+	node = Nodules(world_coord)
+	node.diam = diameter_mm
+	scans = Image_CT_Scans(image_path)
+	voxel_coord = node.world_to_voxel(scans.origin, scans.spacing)
 
-tt = Image_preprocessing('../data/train_subset00/LKDS-00012.mhd')
+	image = scans.image_normalization()[voxel_coord[2]]
+	image = get_segmented_lungs(image)
+	dian = np.array(np.array(diameter_mm,dtype=np.float)/scans.spacing[0], dtype=np.int)+3
+	rr, cc = draw.circle_perimeter(voxel_coord[1], voxel_coord[0], dian)
+	image[rr, cc] = 1
+	io.imsave(save_path, image)
 
-aa = tt.test()
-import matplotlib.pyplot as plt
-plt.imshow(aa[120])
-plt.show()
+
